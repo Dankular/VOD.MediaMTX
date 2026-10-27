@@ -10,6 +10,7 @@ import json
 import time
 import signal
 import logging
+import logging.handlers
 import asyncio
 import subprocess
 from pathlib import Path
@@ -31,7 +32,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/logs/recorder.log')
+        logging.handlers.RotatingFileHandler('/logs/recorder.log', maxBytes=10485760, backupCount=2)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -81,7 +82,11 @@ class S3Uploader:
         s3_config = Config(
             region_name=settings.S3_REGION,
             retries={'max_attempts': 3, 'mode': 'adaptive'},
-            max_pool_connections=50
+            max_pool_connections=10,
+            signature_version='s3v4',
+            s3={'addressing_style': 'path'},
+            request_checksum_calculation='when_required',
+            response_checksum_validation='when_required'
         )
         
         self.s3_client = boto3.client(
@@ -130,7 +135,7 @@ class S3Uploader:
             
             # Construct S3 key
             date_folder = datetime.utcnow().strftime('%Y-%m-%d')
-            s3_key = f"{stream_name}/{date_folder}/{session_id}/{file_path.name}"
+            s3_key = f"coolify/apps/vod/{stream_name}/{date_folder}/{session_id}/{file_path.name}"
             
             logger.info(f"Uploading {file_path.name} to s3://{self.settings.S3_BUCKET_NAME}/{s3_key}")
             
